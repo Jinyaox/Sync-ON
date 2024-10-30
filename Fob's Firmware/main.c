@@ -72,7 +72,7 @@ void identification(int prev_key, int curr_key,char* rand_buffer){
 
 
     strncpy(xor_result,prev_key,KEYLEN);
-    XOR(prev_key,xor_result,KEYLEN);
+    XOR(curr_key,xor_result,KEYLEN);
     concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,128);
 
 
