@@ -7,12 +7,13 @@
 /*
  * Define global secrets for the fobs
  */
-# define KEYLEN 32
+#define KEYLEN 32
+#define RANDLEN 128
 
 //initialize the keys here
 char* carID="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
-char* prev_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
-char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
+char* prev_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH"; //seed
+char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH"; //key
 
 static struct tc_sha256_state_struct hasher;
 
@@ -55,7 +56,7 @@ void initiation(char* dest_buffer){
 
 
     //get the random number from the car
-    get_command(dest_buffer,128);
+    // get_command(dest_buffer,128);
     return;
 }
 
@@ -68,12 +69,12 @@ void identification(int prev_key, int curr_key,char* rand_buffer){
      */
     char outbounding_buffer[KEYLEN];
     char xor_result[KEYLEN];
-    char concatenation_buffer[KEYLEN+128];
+    char concatenation_buffer[KEYLEN+RANDLEN];
 
 
     strncpy(xor_result,prev_key,KEYLEN);
     XOR(curr_key,xor_result,KEYLEN);
-    concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,128);
+    concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,RANDLEN);
 
 
     tc_sha256_update (&hasher,concatenation_buffer,KEYLEN);
@@ -109,7 +110,7 @@ int validation(int prev_key, int curr_key){
      *
      * if validation fails, return 0;
      */
-    char message_buffer[64];
+    char message_buffer[2*KEYLEN];
     char* seed_buf = message_buffer;
     char* r_buf = message_buffer+KEYLEN;
 
