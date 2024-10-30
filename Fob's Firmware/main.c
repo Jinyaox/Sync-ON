@@ -1,4 +1,4 @@
-#include<stdlib.h>
+#include<string.h>
 #include<stdint.h>
 #include"sha256.h"
 #include"bsp.h"
@@ -8,12 +8,13 @@
  * Define global secrets for the fobs
  */
 #define KEYLEN 32
-#define RANDLEN 128
+#define RANDLEN 16
 
 //initialize the keys here
 char* carID="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
 char* prev_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH"; //seed
 char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH"; //key
+
 
 static struct tc_sha256_state_struct hasher;
 
@@ -52,11 +53,12 @@ void concatenation(char* source, char* source2, char* dest, int length1, int len
 
 void initiation(char* dest_buffer){
     //send out "wake" message
-    print_str("wake", 4);
+    //print_str("wake", 4);
+
 
 
     //get the random number from the car
-    // get_command(dest_buffer,128);
+    // get_command(dest_buffer,16);
     return;
 }
 
@@ -77,11 +79,11 @@ void identification(int prev_key, int curr_key,char* rand_buffer){
     concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,RANDLEN);
 
 
-    tc_sha256_update (&hasher,concatenation_buffer,KEYLEN);
+    tc_sha256_update (&hasher,concatenation_buffer,KEYLEN+RANDLEN);
     tc_sha256_final(outbounding_buffer, &hasher);
 
     //send it out here
-    print_str(outbounding_buffer,KEYLEN);
+    //print_str(outbounding_buffer,KEYLEN);
 
     return;
 }
@@ -115,8 +117,11 @@ int validation(int prev_key, int curr_key){
     char* r_buf = message_buffer+KEYLEN;
 
     //receive the message first by polling
+
     //get_command(message_buffer,64);
-    strncpy(message_buffer,"ABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGH");
+
+    //this is the stub
+    strncpy(message_buffer,"ABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGHABCDEFGH",2*KEYLEN);
 
 
     //extract seed and random next
@@ -127,6 +132,7 @@ int validation(int prev_key, int curr_key){
     if (strncmp(prev_key,seed_buf,KEYLEN)==0){
         return 0;
     }
+
     update_key(prev_key,curr_key,r_buf);
     tc_sha256_update (&hasher,r_buf,KEYLEN);
     tc_sha256_final(r_buf, &hasher);
@@ -151,7 +157,7 @@ int main(void)
     UART_SETUP();
 
     //allocate a buffer just for receiving and sending the initial wake
-    char buffer[128];
+    char buffer[17] = "1234567812345678";
 
 
 
@@ -165,7 +171,6 @@ int main(void)
 
 
             //initiation(buffer); //un-comment this one to test the transmission overhead
-
 
             identification(prev_key,curr_key,buffer);
             validation(prev_key,curr_key);
