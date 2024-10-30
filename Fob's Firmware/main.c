@@ -92,8 +92,8 @@ void update_key(char* prev_key, char* curr_key, char* selected_rand){
      */
 
     // change the key here
-    strncpy(prev_key,curr_key,32);
-    strncpy(curr_key,selected_rand,32);
+    strncpy(prev_key,curr_key,KEYLEN);
+    strncpy(curr_key,selected_rand,KEYLEN);
 
     // update the SHA 256 of the next car ID
     tc_sha256_update (&hasher,carID,KEYLEN);
@@ -111,7 +111,7 @@ int validation(int prev_key, int curr_key){
      */
     char message_buffer[64];
     char* seed_buf = message_buffer;
-    char* r_buf = message_buffer+32;
+    char* r_buf = message_buffer+KEYLEN;
 
     //receive the message first by polling
     //get_command(message_buffer,64);
