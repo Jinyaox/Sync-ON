@@ -1,6 +1,8 @@
 #include "tm4c123gh6pm.h"
 #include "stdint.h"
 
+uint8_t TIME_OUT_FLAG = 0;
+
 
 void GPIOA_SETUP(){
   SYSCTL_RCGCGPIO_R|=SYSCTL_RCGCGPIO_R0;
@@ -46,7 +48,8 @@ char UART_RX(void)  {
 
 char Timed_UART_RX(void)  {    
   char data;
-  for(i=0;i<10000;i++){;}  /*start a time window*/
+  int i=0;
+  for(;i<10000;i++){;}  /*start a time window*/
   if ((UART0_FR_R & (1<<4)) != 0){ /*if Rx buffer is full*/
     TIME_OUT_FLAG = 1;
     return (unsigned char) 0;

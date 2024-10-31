@@ -1,7 +1,7 @@
 #ifndef __BSP__
 #define __BSP__
 
-#define TIME_OUT_FLAG 0
+extern uint8_t TIME_OUT_FLAG;
 
 void UART_TX(char c);
 void UART_SETUP(void);

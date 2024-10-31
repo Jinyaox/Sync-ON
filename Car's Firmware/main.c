@@ -2,7 +2,6 @@
 #include<stdint.h>
 #include"sha256.h"
 #include"bsp.h"
-#include "timer.h"
 
 
 /*
@@ -34,9 +33,10 @@ int timed_get_command(char buf[],int max_len){
     char c;
     int counter=0;
     c = Timed_UART_RX();
-    if (TIME_OUT_FLAG==1)
+    if (TIME_OUT_FLAG==1){
         TIME_OUT_FLAG=0;
         return -1;
+    }
     else{
         buf[counter]=c;
         counter++;
@@ -63,7 +63,7 @@ void XOR(char* source, char* target, int length){
     return;
 }
 
-void concatenation(char* source, char* source2, char* dest, int length1, int length2){
+void concatenation(char* source, char* source2, char* dest, int length1,  int length2){
     strncpy(dest,source,length1);
     strncpy(dest+length1,source2,length2);
     return;
@@ -75,21 +75,22 @@ void generate_random_number(char* rand_buffer, int length){
 
 
 
-void identification(){
+int identification(){
     char rand_buffer[KEYLEN];
     char xor_result[KEYLEN];
     char concatenation_buffer[KEYLEN+RANDLEN];
     char outbounding_buffer[KEYLEN];
-
+    //receive response from Fob, h(key^seed||rand)
+    char response_buffer[KEYLEN];
     //generate a buffer of random value
     generate_random_number(rand_buffer, KEYLEN);
     //send random number as challenge
     print_str(rand_buffer, KEYLEN);
-    //receive response from Fob, h(key^seed||rand)
-    response_buffer[KEYLEN];
+
+
 
     //verify received response
-    // get_command(response_buffer, KEYLEN);
+    get_command(response_buffer, KEYLEN);
     strncpy(xor_result,prev_key,KEYLEN);
     XOR(curr_key,xor_result,KEYLEN);
     concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,RANDLEN);
@@ -101,7 +102,7 @@ void identification(){
 }
 
 
-int validation(){
+void validation(){
     char message_buffer[2*KEYLEN];
     char* seed_buf = message_buffer;
     char* r_buf = message_buffer+KEYLEN;
@@ -109,9 +110,9 @@ int validation(){
     char rand1[KEYLEN];
 
     //get_command(message_buffer,64);
-    generate_random_number(c, KEYLEN);
+    generate_random_number(rand1, KEYLEN);
     strncpy(seed_buf,prev_key,KEYLEN);
-    strncpy(rand1,r_buf,KEYLEN);
+    strncpy(r_buf, rand1,KEYLEN);
     // seed^ID
     XOR(carID,seed_buf,KEYLEN);
     //rand1^ID
@@ -123,13 +124,16 @@ int validation(){
     else{
         tc_sha256_update (&hasher,rand1,KEYLEN);
         tc_sha256_final(rand1, &hasher);
-        return strncmp(h_rand_buf,rand1,KEYLEN);
+        if (strncmp(h_rand_buf,rand1,KEYLEN) == 0)
+            update_key();
+        else
+            return;
     }
 }
 
 
 
-void update_key(){
+void update_key(char* rand1){
     /*
      * the fob updates its key once it finished
      * Move onto the respond state
@@ -173,13 +177,8 @@ int main(void)
 
             if (identification() == 0)
                 /*if valication is successful, validation which send out seed^ID, rand^ID, h(rand)*/
-                if (validation() < 0) /*Could subject to Time out or unmatched hash value*/
-                    identification();
-                else
-                    update_key();
-            else
-                /*if the check fails, redo the verification process*/
-                identification();
+                validation();
+
         }
         print_str("0",1);
 
