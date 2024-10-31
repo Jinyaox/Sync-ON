@@ -1,0 +1,16 @@
+FOB's Computation Time Results:
+
+--------------------------------------------------------------
+
+Experiment Ground: TIVA TM4C 123g (16Mhz)
+
+
+Without UART Communication
+
+Elapsed time: 3.962788 seconds for 1000 iterations
+
+Average Iteration Time: 3.96 ms 
+
+
+With UART Communication
+

@@ -31,5 +31,6 @@ def check_computation_time(serial_port, baud_rate=9600, start_signal=b'1', stop_
         print(f"Error opening serial port: {e}")
 
 # Usage
-serial_port = 'COM6'  # Change to your serial port, e.g., '/dev/ttyUSB0' on Linux
+serial_port = 'COM8'  # Change to your serial port, e.g., '/dev/ttyUSB0' on Linux
+
 check_computation_time(serial_port)
