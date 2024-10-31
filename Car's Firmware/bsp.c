@@ -44,6 +44,19 @@ char UART_RX(void)  {
   return (unsigned char) data; 
 }
 
+char Timed_UART_RX(void)  {    
+  char data;
+  for(i=0;i<10000;i++){;}  /*start a time window*/
+  if ((UART0_FR_R & (1<<4)) != 0){ /*if Rx buffer is full*/
+    TIME_OUT_FLAG = 1;
+    return (unsigned char) 0;
+    }
+  else{
+    data = UART0_DR_R ;  /* before giving it another byte */    
+    return (unsigned char) data; 
+  }
+}
+
 void print_str(char* str,int n){
   int cursor=0;
   for(cursor=0;cursor<n;cursor++){

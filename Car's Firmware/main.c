@@ -2,6 +2,7 @@
 #include<stdint.h>
 #include"sha256.h"
 #include"bsp.h"
+#include "timer.h"
 
 
 /*
@@ -15,6 +16,7 @@ char* carID="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
 char* prev_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//seed
 char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//key
 
+
 static struct tc_sha256_state_struct hasher;
 
 void get_command(char buf[],int max_len){
@@ -27,6 +29,26 @@ void get_command(char buf[],int max_len){
   }while(counter<max_len);
   return;
 }
+
+int timed_get_command(char buf[],int max_len){
+    char c;
+    int counter=0;
+    c = Timed_UART_RX();
+    if (TIME_OUT_FLAG==1)
+        TIME_OUT_FLAG=0;
+        return -1;
+    else{
+        buf[counter]=c;
+        counter++;
+    }
+    do{
+    c=UART_RX();
+    buf[counter]=c;
+    counter++;
+    }while(counter<max_len);
+    return 0;
+}
+
 
 
 void XOR(char* source, char* target, int length){
@@ -79,32 +101,43 @@ void identification(){
 }
 
 
-void validation(){
+int validation(){
     char message_buffer[2*KEYLEN];
     char* seed_buf = message_buffer;
     char* r_buf = message_buffer+KEYLEN;
+    char h_rand_buf[KEYLEN];
+    char rand1[KEYLEN];
 
     //get_command(message_buffer,64);
-    generate_random_number(r_buf, KEYLEN);
+    generate_random_number(c, KEYLEN);
     strncpy(seed_buf,prev_key,KEYLEN);
+    strncpy(rand1,r_buf,KEYLEN);
     // seed^ID
     XOR(carID,seed_buf,KEYLEN);
     //rand1^ID
     XOR(carID,r_buf,KEYLEN);
     print_str(message_buffer, 2*KEYLEN);
+
+    if (timed_get_command(h_rand_buf,KEYLEN) == -1)
+        return -1;
+    else{
+        tc_sha256_update (&hasher,rand1,KEYLEN);
+        tc_sha256_final(rand1, &hasher);
+        return strncmp(h_rand_buf,rand1,KEYLEN);
+    }
 }
 
 
 
-void update_key(char* prev_key, char* curr_key, char* selected_rand){
+void update_key(){
     /*
      * the fob updates its key once it finished
      * Move onto the respond state
      */
 
     // change the key here
-    strncpy(prev_key,curr_key,32);
-    strncpy(curr_key,selected_rand,32);
+    strncpy(prev_key,curr_key,KEYLEN);
+    strncpy(curr_key,rand1,KEYLEN);
 
     // update the SHA 256 of the next car ID
     tc_sha256_update (&hasher,carID,KEYLEN);
@@ -115,15 +148,13 @@ void update_key(char* prev_key, char* curr_key, char* selected_rand){
 
 
 
-
-
 int main(void)
 {
     tc_sha256_init(&hasher);
 
     //initiate UART communication with the computer device
     UART_SETUP();
-
+    
     //allocate a buffer just for receiving and sending the initial wake
     char buffer[128];
 
@@ -138,15 +169,16 @@ int main(void)
         print_str("1",1);
         for(i=0;i<1;i++){ //add this for loop just for measuring time.
 
-
             //initiation(buffer); //un-comment this one to test the transmission overhead
 
             if (identification() == 0)
-                //if valication is successful, validation which send out seed^ID, rand^ID, h(rand)
-                validation();
-                //TODO: h(rand)
+                /*if valication is successful, validation which send out seed^ID, rand^ID, h(rand)*/
+                if (validation() < 0) /*Could subject to Time out or unmatched hash value*/
+                    identification();
+                else
+                    update_key();
             else
-                //if the check fails, redo the verification process
+                /*if the check fails, redo the verification process*/
                 identification();
         }
         print_str("0",1);
