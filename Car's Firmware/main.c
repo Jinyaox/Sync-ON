@@ -1,9 +1,20 @@
 #include<stdlib.h>
 #include<stdint.h>
+#include<string.h>
 #include"sha256.h"
+#include <stdbool.h>
 #include"bsp.h"
+#include "inc/hw_ints.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/hw_gpio.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/interrupt.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/adc.h"
 
-
+#define ADC_SEQUENCER_LENGTH 1
 /*
  * Define global secrets for the fobs
  */
@@ -17,6 +28,26 @@ char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//key
 
 
 static struct tc_sha256_state_struct hasher;
+
+
+void initADC(void){
+  //enable the adc0 peripherial.
+  SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+  //set the speed to 1msps.
+  //SysCtlADCSpeedSet(SYSCTL_ADCSPEED_1MSPS);
+  //set the auto avergage to 64.
+  ADCHardwareOversampleConfigure(ADC0_BASE, 64);
+  //before setting up I must disable the sequence 3.
+  ADCSequenceDisable(ADC0_BASE, 3);
+  //set the sequence to use (adc0 sequence 3).
+  ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
+  //set up the sequence step.
+  //set up the last step and start an interrupt when the conversion it's over.
+  ADCSequenceStepConfigure(ADC0_BASE, 3, 0, ADC_CTL_TS | ADC_CTL_IE | ADC_CTL_END);
+  //enable the sequence again!
+  ADCSequenceEnable(ADC0_BASE, 3);
+}
+
 
 void get_command(char buf[],int max_len){
   char c;
@@ -70,7 +101,32 @@ void concatenation(char* source, char* source2, char* dest, int length1,  int le
 }
 
 void generate_random_number(char* rand_buffer, int length){
-    return;
+    //int buffer_length=length/4;
+    uint32_t buffer[8];
+    uint32_t ulADC0Value[ADC_SEQUENCER_LENGTH];
+    uint32_t ulTemp_ValueC=0;
+
+    int i;
+
+    for(i=0;i<length/4;i++){
+        initADC();
+        ADCIntClear(ADC0_BASE, 3);
+        //trigger the adc conversion process.
+        ADCProcessorTrigger(ADC0_BASE, 3);
+        //wait for the interrupt flag to get set!
+        while(!ADCIntStatus(ADC0_BASE, 3, false))
+        {
+           ;
+        }
+        //get the actual data samples from adc0 sequencer 3!
+        ADCSequenceDataGet(ADC0_BASE, 3, ulADC0Value);
+        //convert the value!
+        //  TEMP = 147.5 - ((75 * (VREFP - VREFN) * ADCVALUE) / 4096)
+        //  3.3V *10 * 75 = 2475 //13.3.6 of the TM4C123GH6PM datasheet
+
+        buffer[i]=(1475 -((2475 * ulADC0Value[0])) / 4096)/10;
+    }
+    strncpy(rand_buffer,buffer,length);
 }
 
 
@@ -102,7 +158,7 @@ int identification(){
 }
 
 
-void validation(){
+int validation(){
     char message_buffer[2*KEYLEN];
     char* seed_buf = message_buffer;
     char* r_buf = message_buffer+KEYLEN;
@@ -127,7 +183,7 @@ void validation(){
         if (strncmp(h_rand_buf,rand1,KEYLEN) == 0)
             update_key();
         else
-            return;
+            return 1;
     }
 }
 
@@ -162,26 +218,19 @@ int main(void)
     //allocate a buffer just for receiving and sending the initial wake
     char buffer[128];
 
-
-
-
     while(1){
+        SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
+
         int i=0;
         for(i=0;i<100000;i++){
             ;
         }
         print_str("1",1);
         for(i=0;i<1;i++){ //add this for loop just for measuring time.
-
-            //initiation(buffer); //un-comment this one to test the transmission overhead
-
             if (identification() == 0)
-                /*if valication is successful, validation which send out seed^ID, rand^ID, h(rand)*/
                 validation();
-
         }
         print_str("0",1);
-
     }
 	return 0;
 }
