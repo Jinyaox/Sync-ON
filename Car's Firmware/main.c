@@ -1,9 +1,9 @@
 #include<stdlib.h>
 #include<stdint.h>
 #include<string.h>
-#include"sha256.h"
+#include "sha256.h"
 #include <stdbool.h>
-#include"bsp.h"
+#include "bsp.h"
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
@@ -19,16 +19,16 @@
  * Define global secrets for the fobs
  */
 #define KEYLEN 32
-#define RANDLEN 128
+#define RANDLEN 32
 
 //initialize the keys here
 char* carID="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";
 char* prev_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//seed
 char* curr_key="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//key
+char* correction="ABCDEFGHABCDEFGHABCDEFGHABCDEFGH";//correction slot if goes out of sync
 
 
 static struct tc_sha256_state_struct hasher;
-
 
 void initADC(void){
   //enable the adc0 peripherial.
@@ -101,10 +101,8 @@ void concatenation(char* source, char* source2, char* dest, int length1,  int le
 }
 
 void generate_random_number(char* rand_buffer, int length){
-    //int buffer_length=length/4;
     uint32_t buffer[8];
     uint32_t ulADC0Value[ADC_SEQUENCER_LENGTH];
-    uint32_t ulTemp_ValueC=0;
 
     int i;
 
@@ -134,6 +132,7 @@ void generate_random_number(char* rand_buffer, int length){
 int identification(){
     char rand_buffer[KEYLEN];
     char xor_result[KEYLEN];
+    char correction_result[KEYLEN];
     char concatenation_buffer[KEYLEN+RANDLEN];
     char outbounding_buffer[KEYLEN];
     //receive response from Fob, h(key^seed||rand)
@@ -141,52 +140,40 @@ int identification(){
     //generate a buffer of random value
     generate_random_number(rand_buffer, KEYLEN);
     //send random number as challenge
-    print_str(rand_buffer, KEYLEN);
-
+//    print_str(rand_buffer, KEYLEN);
 
 
     //verify received response
-    get_command(response_buffer, KEYLEN);
+//    get_command(response_buffer, KEYLEN);
     strncpy(xor_result,prev_key,KEYLEN);
     XOR(curr_key,xor_result,KEYLEN);
     concatenation(xor_result,rand_buffer,concatenation_buffer,KEYLEN,RANDLEN);
 
     tc_sha256_update (&hasher,concatenation_buffer,KEYLEN);
     tc_sha256_final(outbounding_buffer, &hasher);
-    // compare the seed with the current one and return the result of strncmp
-    return strncmp(outbounding_buffer,response_buffer,KEYLEN);
-}
 
 
-int validation(){
-    char message_buffer[2*KEYLEN];
-    char* seed_buf = message_buffer;
-    char* r_buf = message_buffer+KEYLEN;
-    char h_rand_buf[KEYLEN];
-    char rand1[KEYLEN];
+    // compare the seed with the current one and return the result of strncmp normal
+    int result=strncmp(outbounding_buffer,response_buffer,KEYLEN);
 
-    //get_command(message_buffer,64);
-    generate_random_number(rand1, KEYLEN);
-    strncpy(seed_buf,prev_key,KEYLEN);
-    strncpy(r_buf, rand1,KEYLEN);
-    // seed^ID
-    XOR(carID,seed_buf,KEYLEN);
-    //rand1^ID
-    XOR(carID,r_buf,KEYLEN);
-    print_str(message_buffer, 2*KEYLEN);
-
-    if (timed_get_command(h_rand_buf,KEYLEN) == -1)
-        return -1;
-    else{
-        tc_sha256_update (&hasher,rand1,KEYLEN);
-        tc_sha256_final(rand1, &hasher);
-        if (strncmp(h_rand_buf,rand1,KEYLEN) == 0)
-            update_key();
-        else
-            return 1;
+    if(result!=0){
+        strncpy(correction_result,curr_key,KEYLEN);
+        XOR(correction,correction_result,KEYLEN);
+        concatenation(correction_result,rand_buffer,concatenation_buffer,KEYLEN,RANDLEN);
+        tc_sha256_update (&hasher,concatenation_buffer,KEYLEN);
+        tc_sha256_final(outbounding_buffer, &hasher);
+        result=strncmp(outbounding_buffer,response_buffer,KEYLEN);
+        if(result!=0){return -1;}
+        else{
+            strncpy(prev_key,curr_key,KEYLEN);
+            strncpy(curr_key,correction,KEYLEN);
+            // update the SHA 256 of the next car ID
+            tc_sha256_update (&hasher,carID,KEYLEN);
+            tc_sha256_final(carID, &hasher);
+            return 0;
+        }
     }
 }
-
 
 
 void update_key(char* rand1){
@@ -206,6 +193,47 @@ void update_key(char* rand1){
     return;
 }
 
+void update_correction(char* rand1){
+
+    strncpy(correction,rand1,KEYLEN);
+
+    return;
+}
+
+
+int validation(){
+    char message_buffer[2*KEYLEN];
+    char* seed_buf = message_buffer;
+    char* r_buf = message_buffer+KEYLEN;
+    char h_rand_buf[KEYLEN];
+    char rand1[KEYLEN];
+
+    //get_command(message_buffer,64);
+    generate_random_number(rand1, KEYLEN);
+    strncpy(seed_buf,prev_key,KEYLEN);
+    strncpy(r_buf, rand1,KEYLEN);
+    // seed^ID
+    XOR(carID,seed_buf,KEYLEN);
+    //rand1^ID
+    XOR(carID,r_buf,KEYLEN);
+//  print_str(message_buffer, 2*KEYLEN);
+
+    if (timed_get_command(h_rand_buf,KEYLEN) == -1){
+        update_correction(rand1);
+        return -1;
+    }
+
+
+    else{
+        tc_sha256_update (&hasher,rand1,KEYLEN);
+        tc_sha256_final(rand1, &hasher);
+        if (strncmp(h_rand_buf,rand1,KEYLEN) == 0)
+            update_key(rand1);
+        else
+            return 1;
+    }
+}
+
 
 
 int main(void)
@@ -216,15 +244,11 @@ int main(void)
     UART_SETUP();
     
     //allocate a buffer just for receiving and sending the initial wake
-    char buffer[128];
+//    char buffer[128];
 
     while(1){
         SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
-
-        int i=0;
-        for(i=0;i<100000;i++){
-            ;
-        }
+        int i;
         print_str("1",1);
         for(i=0;i<1;i++){ //add this for loop just for measuring time.
             if (identification() == 0)
