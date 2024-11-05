@@ -11,19 +11,19 @@ def check_computation_time(serial_port, baud_rate=9600, start_signal=b'1', stop_
             while True:
                 if ser.in_waiting > 0:
                     signal = ser.read().strip()
-                    if signal == start_signal:
-                        # print("start")
-                        start_time = time.time()  # Start the timer
-                        break
+                    # if signal == start_signal:
+                    #     print("start")
+                    start_time = time.time()  # Start the timer
+                    break
 
             # Wait for the stop signal
             while True:
                 if ser.in_waiting > 0:
                     signal = ser.read().strip()
-                    if signal == stop_signal:
-                        # print("end")
-                        end_time = time.time()  # Stop the timer
-                        break
+                    # if signal == stop_signal:
+                    #     print("end")
+                    end_time = time.time()  # Stop the timer
+                    break
 
             # Calculate and print the elapsed time
             elapsed_time = end_time - start_time
@@ -35,6 +35,6 @@ def check_computation_time(serial_port, baud_rate=9600, start_signal=b'1', stop_
         print(f"Error opening serial port: {e}")
 
 # Usage
-serial_port = '/dev/tty.usbmodem0E23B5EB1'  # Change to your serial port, e.g., '/dev/ttyUSB0' on Linux
+serial_port = 'COM8'  # Change to your serial port, e.g., '/dev/ttyUSB0' on Linux
 
 check_computation_time(serial_port)

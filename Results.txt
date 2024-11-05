@@ -7,10 +7,30 @@ Experiment Ground: TIVA TM4C 123g (16Mhz)
 
 Without UART Communication
 
-Elapsed time: 3.962788 seconds for 1000 iterations
+Elapsed time: 2.850845 seconds for 1000 iterations
 
-Average Iteration Time: 3.96 ms 
+Average Iteration Time: 2.85 ms 
+
+--------------------------------------
+
+Car's Computation Time Results:
+
+
+Elapsed time: 3.893558 seconds for 1000 iterations
+Average Iteration Time: 3.89 ms 
+
+--------------------------------------
+
+Car with correction
+
+Elapsed time: 3.962788 seconds for 1000 iterations
+Average Elapsed time: 3.96 milliseconds
+ 
+--------------------------------------
 
 
 With UART Communication
 
+Elapsed time: 14.771164 seconds for 100 iterations
+
+Average Iteration Time: 147.7 ms
